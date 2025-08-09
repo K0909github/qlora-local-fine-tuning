@@ -205,3 +205,17 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# ... Pythonのデフォルト設定 ...
+
+# 出力ディレクトリ
+output/
+qlora-finetune-output/
+
+# Hugging Faceキャッシュ
+.cache/
+huggingface/
+
+# VSCode
+.vscode/

@@ -1,0 +1,17 @@
+{
+  "name": "QLoRA Fine-tuning Environment",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."  
+  },
+  "runArgs": [
+    "--gpus=all" // ← これが最も重要！コンテナにGPUを割り当てる設定
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python" // Python開発に便利な拡張機能
+      ]
+    }
+  }
+}

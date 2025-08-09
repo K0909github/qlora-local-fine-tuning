@@ -1,0 +1,7 @@
+transformers
+accelerate
+bitsandbytes
+peft
+datasets==2.16.1
+torch
+scipy # bitsandbytesが依存関係で要求する場合がある
