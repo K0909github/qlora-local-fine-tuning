@@ -34,8 +34,8 @@ inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
 
 # 生成に関する設定を一つのオブジェクトにまとめる
 generation_config = GenerationConfig(
-    max_new_tokens=50,
-    temperature=0.1,
+    max_new_tokens=200,
+    temperature=1.0,
     repetition_penalty=1.2,
     do_sample=True,  # サンプリングを有効にしてtemperatureを使えるようにする
     pad_token_id=tokenizer.eos_token_id # pad_token_idを明示的に設定
@@ -49,4 +49,10 @@ print(prompt, end="")
 outputs = model.generate(**inputs, generation_config=generation_config)
 
 # 生成されたトークンをデコードして表示
-print(tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True))
+output_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+# "Answer:"以降のみ抽出
+if "Answer:" in output_text:
+    answer = output_text.split("Answer:", 1)[1].strip()
+else:
+    answer = output_text.strip()
+print(answer)

@@ -63,6 +63,11 @@ def main(args):
 
     # データセットの各行に上の関数を適用し、不要なカラムを削除
     dataset = dataset.map(format_data, remove_columns=['id', 'question_id', 'document_id', 'question', 'type', 'choices', 'context', 'answer'])
+    
+    # 整形後のデータの先頭サンプルを表示
+    print("--- 整形後データ例 ---")
+    print("prompt:", dataset[0]["prompt"])
+    print("label:", dataset[0]["label"])
 
     # --- 3.5 トークン化 ---
     # prompt（質問＋選択肢＋Answer:）とlabel（答え）を分離してトークン化
