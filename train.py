@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import argparse
 
 def print_trainable_parameters(model):
-    """学習可能なパラメータ数とその割合を表示"""
+    """学習可能なパラメータ数と割合を表示"""
     trainable_params = 0
     all_param = 0
     for _, param in model.named_parameters():
@@ -18,7 +18,7 @@ def print_trainable_parameters(model):
     )
 
 def main(args):
-    # --- QLoRA設定 ---
+    # --- 1. QLoRA設定 ---
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -36,7 +36,7 @@ def main(args):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # LoRA設定
+    # --- 2. LoRA設定 ---
     model = prepare_model_for_kbit_training(model)
     lora_config = LoraConfig(
         r=16,
@@ -50,42 +50,61 @@ def main(args):
     print("LoRA設定後のモデル:")
     print_trainable_parameters(model)
 
-    # --- データセット ---
+    # --- 3. データセット ---
     dataset = load_dataset(args.dataset_name, "med_qa_en_bigbio_qa", split="train", trust_remote_code=True)
 
     def format_data(example):
         options = "\n".join([f"{chr(65+i)}: {choice}" for i, choice in enumerate(example["choices"])])
         answer_text = example["answer"][0] if isinstance(example["answer"], list) else example["answer"]
         prompt = f"Question: {example['question']}\n\nOptions:\n{options}\n\nAnswer:"
-        return {"prompt": prompt, "label": " " + answer_text}  # 正解の前にスペースを追加して自然な生成に
+        return {"prompt": prompt, "label": " " + answer_text}
 
-    dataset = dataset.map(format_data, remove_columns=['id', 'question_id', 'document_id', 'question', 'type', 'choices', 'context', 'answer'])
+    dataset = dataset.map(format_data, remove_columns=[
+        'id', 'question_id', 'document_id', 'question', 'type', 'choices', 'context', 'answer'
+    ])
 
     print("--- 整形後データ例 ---")
     print("prompt:", dataset[0]["prompt"])
     print("label:", dataset[0]["label"])
 
-    # --- トークナイズ ---
+    # --- 3.5 トークナイズ ---
     def tokenize_function(examples):
-        inputs = tokenizer(examples["prompt"], truncation=True, max_length=512)
-        labels = tokenizer(examples["label"], truncation=True, max_length=16, add_special_tokens=False)
+        # prompt部分（固定長512）
+        model_inputs = tokenizer(
+            examples["prompt"],
+            truncation=True,
+            max_length=512,
+            padding="max_length"
+        )
 
-        # input_ids と labels を結合
-        input_ids = inputs["input_ids"] + labels["input_ids"]
-        attention_mask = inputs["attention_mask"] + [1] * len(labels["input_ids"])
+        # label部分（固定長16）
+        label_inputs = tokenizer(
+            text_target=examples["label"],
+            truncation=True,
+            max_length=16,
+            padding="max_length",
+            add_special_tokens=False
+        )
 
-        # prompt 部分は -100（損失計算対象外）
-        label_ids = [-100] * len(inputs["input_ids"]) + labels["input_ids"]
+        # 結合
+        input_ids = model_inputs["input_ids"] + label_inputs["input_ids"]
+        attention_mask = model_inputs["attention_mask"] + label_inputs["attention_mask"]
+
+        # prompt部分は -100 にする
+        labels = [-100] * len(model_inputs["input_ids"]) + label_inputs["input_ids"]
+
+        # 確認用
+        assert len(input_ids) == len(attention_mask) == len(labels), "長さ不一致があります"
 
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "labels": label_ids
+            "labels": labels
         }
 
     tokenized_dataset = dataset.map(tokenize_function, remove_columns=["prompt", "label"])
 
-    # --- トレーニング ---
+    # --- 4. トレーニング ---
     training_args = transformers.TrainingArguments(
         output_dir=args.output_dir,
         num_train_epochs=3,
